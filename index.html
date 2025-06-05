@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure Foundry Assistant Chat</title>
+    <title>Azure OpenAI Chat</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -172,7 +172,7 @@
 <body>
     <div class="content">
         <h1>Welcome to Our Website</h1>
-        <p>This is a sample page with an Azure Foundry Assistant chatbot in the bottom right corner.</p>
+        <p>This is a sample page with an Azure OpenAI chatbot in the bottom right corner.</p>
         <p>Click on the chat icon to start a conversation with our AI assistant.</p>
     </div>
     
@@ -187,7 +187,7 @@
     <!-- Chat Window -->
     <div class="chat-window" id="chatWindow">
         <div class="chat-header">
-            <span>Azure Foundry Assistant</span>
+            <span>AI Assistant</span>
             <span class="close-chat" id="closeChat">×</span>
         </div>
         <div class="chat-messages" id="chatMessages">
@@ -207,9 +207,11 @@
     </div>
     
     <script>
-        // Configuration - Replace with your actual Azure Foundry Assistant endpoint and API key
+        // Configuration - Azure OpenAI settings
         const AZURE_ENDPOINT = 'https://bh-us-openai-deeppocketsai.openai.azure.com/';
         const API_KEY = 'f79369416f8f4204aa52fb52d91bf18a'; // Replace with your actual API key
+        const DEPLOYMENT_NAME = 'gpt-4o'; // Replace with your deployment name (e.g., 'gpt-35-turbo')
+        const API_VERSION = '1'; // Use the appropriate API version
         
         // DOM Elements
         const chatIcon = document.getElementById('chatIcon');
@@ -219,6 +221,11 @@
         const userInput = document.getElementById('userInput');
         const sendButton = document.getElementById('sendButton');
         const typingIndicator = document.getElementById('typingIndicator');
+        
+        // Chat history for context
+        let chatHistory = [
+            { role: 'system', content: 'You are a helpful assistant.' }
+        ];
         
         // Event Listeners
         chatIcon.addEventListener('click', toggleChat);
@@ -248,11 +255,14 @@
             addMessage(message, 'user');
             userInput.value = '';
             
+            // Add to chat history
+            chatHistory.push({ role: 'user', content: message });
+            
             // Show typing indicator
             typingIndicator.style.display = 'block';
             
-            // Send message to Azure Foundry Assistant
-            fetchAzureResponse(message);
+            // Send message to Azure OpenAI
+            fetchAzureResponse();
         }
         
         function addMessage(text, sender) {
@@ -268,28 +278,38 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
-        async function fetchAzureResponse(message) {
+        async function fetchAzureResponse() {
             try {
-                const response = await fetch(AZURE_ENDPOINT, {
+                // Construct the complete endpoint URL for Azure OpenAI
+                const completeEndpoint = `${AZURE_ENDPOINT}openai/deployments/${DEPLOYMENT_NAME}/chat/completions?api-version=${API_VERSION}`;
+                
+                console.log('Sending request to:', completeEndpoint);
+                console.log('With messages:', JSON.stringify(chatHistory));
+                
+                const response = await fetch(completeEndpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`
+                        'api-key': API_KEY
                     },
                     body: JSON.stringify({
-                        messages: [
-                            { role: 'system', content: 'You are a helpful assistant.' },
-                            { role: 'user', content: message }
-                        ],
-                        max_tokens: 800
+                        messages: chatHistory,
+                        max_tokens: 800,
+                        temperature: 0.7,
+                        top_p: 0.95,
+                        frequency_penalty: 0,
+                        presence_penalty: 0
                     })
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    throw new Error(`HTTP error! Status: ${response.status}, Details: ${errorText}`);
                 }
                 
                 const data = await response.json();
+                console.log('Response data:', data);
                 
                 // Hide typing indicator
                 typingIndicator.style.display = 'none';
@@ -298,12 +318,15 @@
                 if (data.choices && data.choices.length > 0) {
                     const assistantMessage = data.choices[0].message.content;
                     addMessage(assistantMessage, 'assistant');
+                    
+                    // Add to chat history
+                    chatHistory.push({ role: 'assistant', content: assistantMessage });
                 } else {
                     addMessage('Sorry, I couldn\'t process your request.', 'assistant');
                 }
                 
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Detailed error:', error);
                 typingIndicator.style.display = 'none';
                 addMessage('Sorry, there was an error connecting to the assistant.', 'assistant');
             }
